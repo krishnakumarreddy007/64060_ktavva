@@ -1,0 +1,265 @@
+---
+title: "Assignment_2"
+author: "Krishna Kumar Tavva - 811283461"
+date: "2023-02-19"
+output: pdf_document
+---
+# Loading required packages & calling libraries: readr, fastdummies, class, caret, ggplot2, lattice, ISLR, gmodels
+```{r}
+#install.packages("readr")
+#install.packages("fastDummies")
+#install.packages("lattice") 
+#install.packages("ggplot2") 
+#install.packages("gmodels") 
+#install.packages("ISLR") 
+#install.packages(“class”)
+#install.packages(caret”)
+library(readr)
+library(fastDummies)
+library(ISLR) 
+library(caret)
+library(class)
+library(ggplot2)
+library(gmodels)
+library(lattice)
+```
+
+# Load Data into R
+```{r}
+ub <- data.frame(read.csv("C:/Users/krish/Downloads/UniversalBank.csv"))
+str(ub)
+```
+
+# Data cleaning (removing ID and ZIP code)
+```{r}
+ub <- ub[,c(-1,-5)]
+head(ub, n=5)
+```
+# Verify if there are any null values in the datasets
+
+```{r}
+any(is.na.data.frame(ub))
+```
+
+# Converting data types of attributes
+```{r}
+
+#Convert the Education variable to character
+ub$Education <- as.character(ub$Education)
+
+#Convert the Personal Loan variable to factor
+ub$Personal.Loan <- as.factor(ub$Personal.Loan)
+```
+# Dummying Variables using fastdummies package
+```{r}
+ub <- dummy_cols(ub,select_columns = "Education")
+
+#Remove Education variable after Dummy variables are created for Education
+ubn <- ub[,-6]
+colnames(ubn)
+```
+# Train & Test Datasets
+```{r}
+set.seed(1)
+train.index <- sample(row.names(ubn), 0.6*dim(ubn)[1])
+valid.index <- setdiff (row.names(ubn), train.index)
+
+# Train Data
+train.ubn <- ubn[train.index, ]
+#summary(train.ubn)
+
+# Test data
+valid.ubn <- ubn[valid.index, ]
+#summary(valid.ubn)
+```
+# Normalizing the training dataset
+```{r}
+Model_Z_Normalized <- preProcess(train.ubn[,-c(7,12:14)], method=c("center","scale"))
+
+Normalized_Data_Train <- predict(Model_Z_Normalized, train.ubn)
+
+Normalized_Data_Validation <- predict(Model_Z_Normalized, valid.ubn)
+
+#summary(Normalized_Data_Train)
+#summary(Normalized_Data_Validation)
+```
+
+# Inserting a test set and normalizing it
+
+```{r}
+test_data <- data.frame(Age = 40,Experience = 10, Income = 84, Family = 2,
+CCAvg = 2, Mortgage = 0, Securities.Account = 0, CD.Account = 0, 
+Online = 1, CreditCard = 1, Education_1 = "0", Education_2 = "1", Education_3 = "0")
+
+Test_Normalized <- predict(Model_Z_Normalized, test_data)
+```
+
+# 1.Running the knn model on the test dataset with k=1
+
+```{r}
+Train_Predictors <- Normalized_Data_Train[,-7]
+Validation_Predictors <- Normalized_Data_Validation[,-7]
+
+Train_Labels <- Normalized_Data_Train[,7]
+Validate_Lables <- Normalized_Data_Validation[,7]
+
+Predicted_K <- knn(Train_Predictors, Test_Normalized, cl=Train_Labels, k=1)
+
+head(Predicted_K)
+```
+When k=1 the customer is classified as 0 which indicates that the loan is not accepted. Since factor 1 is classified as loan acceptance and 0 is not accepted.
+
+# 2.Choice of k that balances between overfitting and ignoring the predictor information
+
+```{r}
+set.seed(1)
+search_grid <- expand.grid(k=c(1:20))
+#trtcontrol <- trainControl(method="repeatedcv")
+model <- train(Personal.Loan~Age+Experience+Income+Family+CCAvg+Mortgage+
+Securities.Account+CD.Account+Online+CreditCard+Education_1+Education_2+
+  Education_3, data=Normalized_Data_Train, method="knn", tuneGrid = search_grid)
+model
+best_k <- model$bestTune[[1]]
+best_k
+```
+
+The k value which balances between over fitting and ignoring the predictor information is k = 1.
+
+
+# Plotting the model
+
+```{r}
+plot(model)
+```
+
+# 3.Confusion matrix being deployed over the validation data
+
+```{r}
+pred_training <- predict(model,Normalized_Data_Validation[,-7])
+confusionMatrix(pred_training, Validate_Lables)
+```
+Miscalculations = 87, Accuracy = 0.9565, Sensitivity = 0.9883
+
+# 4.Running the test data with best k choosen above
+
+```{r}
+test_best_k <- knn(Train_Predictors, Test_Normalized, cl=Train_Labels, k=best_k)
+head(test_best_k)
+```
+
+With the best k being choosen, the customer is classified as 0 which indicates that the loan is not accepted.
+
+# 5.Repartitioning the data into training(50%), validation(30%) and test(20%) and running the entire model with best k
+
+```{r}
+set.seed(1)
+data_part <- createDataPartition(ubn$Personal.Loan, p=0.5, list = F)
+n_train_data <- ubn[data_part,]
+nd_test_data <- ubn[-data_part,]
+
+data_part_v <- createDataPartition(nd_test_data$Personal.Loan,p=0.6, list =F)
+n_validate_data <- nd_test_data[data_part_v,]
+n_test_data <- nd_test_data[-data_part_v,]
+
+#Normalization
+
+norm_m <- preProcess(n_train_data[,-c(7,12:14)],method=c("center","scale"))
+
+train_z <- predict(norm_m, n_train_data)
+validate_z <- predict(norm_m, n_validate_data)
+test_z <- predict(norm_m, n_test_data)
+
+#Defining the predictors and labels
+
+n_train_predictor <- train_z[,-7]
+n_validate_predictor <- validate_z[,-7]
+n_test_predictor <- test_z[,-7]
+
+n_train_labels <- train_z[,7]
+n_validate_labels <- validate_z[,7]
+n_test_labels <- test_z[,7]
+```
+# Alternative way to find the best k value using the train and validation dataset
+
+```{r}
+n_validate_labels[7] <- factor(n_validate_labels[7])
+n_train_labels[7] <- factor(n_train_labels[7])
+n_test_labels[7] <- factor(n_test_labels[7])
+
+accuracydf <- data.frame(kValue=seq(1,13,1),Accuracy_Train=0,
+Accuracy_Val=0,Accuracy_Test=0)
+
+for(i in 1:nrow(accuracydf)){
+n_train_labels_Predicted <- knn(n_train_predictor,n_train_predictor,
+n_train_labels[7],
+k=i)
+accuracydf[i,2] <- confusionMatrix(n_train_labels_Predicted, n_train_labels[7],positive="1")
+n_validate_labels_Predicted <- knn(n_train_predictor,n_validate_predictor,
+n_train_labels[7],
+k=i)
+accuracydf[i,3] <- confusionMatrix(n_validate_labels_Predicted,
+n_validate_labels[7],positive="1")$overall[1]
+n_test_labels_Predicted <- knn(n_train_predictor,n_test_predictor,
+n_train_labels[7],
+k=i)
+accuracydf[i,4] <- confusionMatrix(n_test_labels_Predicted,
+n_test_labels[7],positive="1")$overall[1]
+}
+accuracydf
+```
+
+k=1 has accuracy 1 which could mean there is chance of overfitting. Validation and Test has lesser accuracy
+k=3 has best accuracy considering all three datasets train, validation and test
+
+```{r}
+
+best_k_1 <- 3
+
+cat("Alternative Approach - Optimal K value for the dataset is ",
+as.character(best_k_1))
+```
+
+Alternative Approach - Optimal K value for the dataset is 3
+
+
+```{r}
+#running the knn model over train dataset
+
+n_model <- knn(n_train_predictor,n_train_predictor,cl=n_train_labels,k=best_k_1)
+head(n_model)
+
+
+n_model1 <- knn(n_train_predictor,n_validate_predictor,cl=n_train_labels,k=best_k_1)
+head(n_model1)
+
+
+n_model2 <- knn(n_train_predictor,n_test_predictor,cl=n_train_labels,k=best_k_1)
+head(n_model2)
+```
+
+# Using CrossTable to compare the Test vs Training and Validation
+```{r}
+confusionMatrix(n_model,n_train_labels)
+
+#Train_Data - Miscalculations = 0 Accuracy = 1 Sensitivity = 1 
+
+#(This is because both the train and test datasets are same, model has already seen the data and hence it cannot predict anything wrong, which results in 100% Accuracy and 0 Miscalculations).
+
+confusionMatrix(n_model1,n_validate_labels)
+
+#Validation Data - Miscalculations = 13+50 = 63 Accuracy = 0.958 Sensitivity = 0.9904
+
+confusionMatrix(n_model2,n_test_labels)
+
+#Test_Data - Miscalculations = 57 Accuracy = 0.943 Sensitivity = 0.9746
+
+#Interpretation: When comparing the test with that of training and validation, we shall exclude train from this consideration because a model will mostly result in 100% accuracy when it has the seen data.
+```
+
+Miscalculations: Validation - 63, Test - 57
+Accuracy: Validation - 0.958, Test - 0.943
+Sensitivity: Validation - 0.9904, Test - 0.9746
+
+We see that the Test data has fewer miscalculations, less accuracy and sensitivity when compared to that of the validation data, by this we can say that the model works OK on the unseen data.
+
+
