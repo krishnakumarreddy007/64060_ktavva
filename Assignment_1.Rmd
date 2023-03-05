@@ -1,0 +1,62 @@
+---
+title: "Assignment_1"
+author: "Krishna Kumar Tavva - 811283461"
+date: "1/29/2023"
+output: pdf_document
+---
+
+# Downloaded the Pharmaceuticals dataset from Canvas and stored to this PC.
+
+# Imported the Pharmaceuticals into R
+
+```{r}
+#install.packages("tinytex")
+#tinytex::install_tinytex()
+```
+
+```{r}
+#install.packages("readr")
+pharmaceuticals=read.csv("E:\\Fundamentals of Machine Learning\\Datasets\\Pharmaceuticals.csv")
+```
+
+# Print out descriptive statistics for a selection of quantitative and categorical variables
+
+```{r}
+summary(pharmaceuticals)
+
+```
+# Transform at least one variable
+
+```{r}
+#install.packages("tidyverse")
+
+library(tidyverse)
+```
+
+# Logarithmic Transformation of PE_Ratio
+
+```{r}
+log10(pharmaceuticals$PE_Ratio)
+```
+
+# Histogram Plot of Asset_Turnover
+ ```{r}
+hist(pharmaceuticals$Asset_Turnover)
+```
+# Scatter Plot between ROE & ROA
+
+```{r}
+plot(pharmaceuticals$ROE, pharmaceuticals$ROA)
+```
+
+# Catregorical Plot for Median Recommendation
+
+```{r}
+#install.packages("ggplot2")
+library(ggplot2)
+ggplot(pharmaceuticals, aes(x=pharmaceuticals$Median_Recommendation)) +geom_bar(fill='dark grey') +  labs(x='MR')
+```
+
+
+
+
