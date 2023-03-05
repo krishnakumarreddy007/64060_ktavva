@@ -1,7 +1,6 @@
-# 64060_ktavva
+# Fundamentals of Machine Learning (MIS 64060):
 
-
-Assignment1: 
+Assignment 1: 
 
 Purpose
 The purpose of this assignment is to set up and use the tools for this course.
