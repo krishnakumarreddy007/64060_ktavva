@@ -1,0 +1,135 @@
+---
+title: "Assignment_3"
+author: "Krishna Kumar Tavva - 811283461"
+date: "2023-03-01"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+# Loading required packages & calling libraries:
+
+```{r}
+#install.packages("reshape2")
+library(class) #classification
+library(caret) #creating predictive models
+library(readr) #Load Data
+library(e1071) #naive Bayes classifier
+library(reshape2) #restructure and aggregate data
+library(dplyr) #data manipulation
+library(ISLR) #collection of data-sets
+library(gmodels) #fits a model
+library(pROC) #to plot a graph showing the performance of a classification model
+```
+
+# Load data
+
+```{r}
+ub <- data.frame(read.csv("E:/Fundamentals of Machine Learning/Module 5/UniversalBank.csv"))
+head(ub)
+```
+
+# checking for na values
+```{r}
+any(is.na.data.frame(ub))
+```
+
+# Data factoring
+
+```{r}
+is.factor(ub$Personal.Loan)
+ub$Personal.Loan <- as.factor(ub$Personal.Loan)
+is.factor(ub$Online)
+ub$Online <- as.factor(ub$Online)
+ub$CreditCard <- as.factor(ub$CreditCard)
+is.factor(ub$CreditCard)
+```
+
+# Data Partition
+```{r}
+set.seed(1)
+Index_Train <- createDataPartition(ub$Personal.Loan,p=.6, list=F)
+Train <- ub[Index_Train,]
+Validate <- ub[-Index_Train,]
+```
+
+#Data Normalization
+```{r}
+norm_model <- preProcess(Train[,-c(10,13:14)],
+method=c("center","scale"))
+Train_norm <- predict(norm_model,Train)
+Validate_norm <- predict(norm_model,Validate)
+```
+
+# A.Create a pivot table for the training data with Online as a column variable, CC as a row variable, and Loan as a secondary row variable
+```{r}
+table <- ftable(CreditCard= Train_norm$CreditCard, Loan=Train_norm$Personal.Loan, Online= Train_norm$Online)
+table
+```
+# B.The probability of customer accepting loan and using credit card plus being an online banking user = 52/(52+503) = 0.09369
+
+# C.Create two separate pivot tables for the training data
+```{r}
+#Loan (rows) as a function of Online (columns)
+table_1 <- table(Loan=Train_norm$Personal.Loan, Online= Train_norm$Online)
+table_1
+
+#Loan (rows) as a function of CC(columns)
+table_2 <- table(Loan=Train_norm$Personal.Loan, CreditCard= Train_norm$CreditCard)
+table_2
+```
+# D.Compute the following quantities [P(A | B) i.e. the probability of A given B]
+```{r}
+ftable(Train_norm[,c(10,13)])
+```
+
+
+```{r}
+ftable(Train_norm[,c(10,14)])
+```
+
+
+```{r}
+ftable(Train_norm[,10])
+
+```
+1. P(CC = 1 | Loan = 1) = 91/(91+197) = 0.31597
+2. P(Online= 1 | Loan= 1) = 172/(172+116) = 0.5972
+3. P(Loan = 1) = 288/(288+2712) = 0.096
+4. P(CC= 1 | Loan= 0) = 806/(806+1906) = 0.29719
+5. P(Online=1 |Loan=0) = 1629/(1629+1083) = 0.5940
+6. P(Loan = 0) = 2712/(2712+288) = 0.904
+
+
+# E. Use the quantities computed above to compute the Naive Bayes probability P(Loan = 1 | CC = 1, Online = 1)
+## (0.31597 x 0.5972 x 0.096) / (0.31597 x 0.5972 x 0.096) + (0.29719 x 0.5940 x 0.904) = 0.1068
+
+# F. By comparing the value obtained above by using the Naive Bayes probability i.e. 0.1068 to the value obtained in step B i.e. 0.09369 we get to see that both the values are near values, but Naive Bayes has a bit higher probability when compared to that with the direct calculation.
+
+# G. Run the Naive Bayes Model
+
+```{r}
+naive <- naiveBayes(Personal.Loan~Online+CreditCard,data=Train_norm)
+naive
+```
+# The value obtained by running the Naive Bayes Model for the customer who is accepting the loan and using credit card plus being an online banking user is 0.096 which is near to the value obtained in E
+
+# Predicting the Naive Bayes model over the validation data and also looking at the AUC Value and ROC Curve
+
+```{r}
+pred_labels <- predict(naive,Validate_norm,type = "raw")
+head(pred_labels)
+```
+
+```{r}
+roc(Validate_norm$Online,pred_labels[,2])
+```
+## In general, an AUC of 0.5 suggests no discrimination (i.e., ability to diagnose patients with and without the disease or condition based on the test), 0.7 to 0.8 is considered acceptable, 0.8 to 0.9 is considered excellent, and more than 0.9 is considered outstanding.
+
+## Area under the curve: 0.8068
+
+#clearing the all loaded work from Environment
+```{r}
+rm(list = ls(all.names = TRUE)) #will clear all objects includes hidden objects.
+gc() #free up memory and report the memory usage.
+```
