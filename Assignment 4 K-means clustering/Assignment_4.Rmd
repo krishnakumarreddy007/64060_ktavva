@@ -1,0 +1,163 @@
+---
+title: "Assignment_4"
+author: "Krishna Kumar Tavva - 811283461"
+date: "2023-03-16"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls()) #clean environment
+```
+
+# install packages and call the libraries
+
+```{r}
+#install.packages("factoextra")
+#install.packages("pander")
+#install.packages("cowplot")
+library(tidyverse) #data manipulation
+library(factoextra) #clustering algorithms & visualization
+library(ISLR) #Statistical Learning
+library(dplyr)
+library(ggplot2)
+library(pander)
+library(cowplot)
+```
+
+# Loading the data
+
+```{r}
+Pharma <- read.csv("E:\\Fundamentals of Machine Learning\\Module 6\\Pharmaceuticals.csv")
+summary(Pharma)
+row.names(Pharma) <- Pharma[,1]
+```
+
+# Looking for null values
+
+```{r}
+any(is.na.data.frame(Pharma))
+```
+
+# a.Normalization and finding the optimal k by Elbow chart and the Silhouette Method
+```{r}
+set.seed(1)
+Pharma_norm <- scale(Pharma[,-c(1:2,12:14)])
+
+pandoc.table(head(Pharma_norm),style="grid", split.tables = Inf)# top 6 Observation from pharma_Norm
+wss <- fviz_nbclust(Pharma_norm,kmeans,method="wss")
+wss
+silhouette <- fviz_nbclust(Pharma_norm,kmeans,method="silhouette")
+silhouette
+```
+#The optimal k thereby received using the wss method is k = 2 whereas by employing the silhouette method the optimal k received was k = 5.
+
+# Formulation of clusters using K-Means with k = 2 (WSS)
+
+```{r}
+wss_kmeans <- kmeans(Pharma_norm,centers = 2,nstart=25)
+pandoc.table(wss_kmeans$centers,style="grid", split.tables = Inf)
+
+```
+
+# Formulation of clusters using K-Means with k = 5 (Silhouette)
+
+```{r}
+silhouette_kmeans <- kmeans(Pharma_norm,centers=5,nstart=25)
+pandoc.table(silhouette_kmeans$centers,style="grid", split.tables = Inf)
+
+```
+
+
+# Cluster Plot (Elbow)
+
+```{r}
+fviz_cluster(wss_kmeans,data=Pharma_norm,main="Cluster_WSS")
+```
+
+# b.Interpret the clusters with respect to the numerical variables used in forming the clusters 
+
+```{r}
+wss_kmeans$size #Size of the cluster
+#By employing the WSS Method we get 2 clusters of size 11 and 10.
+
+wss_kmeans$withinss #Total within-cluster sum of squares
+
+wss_kmeans$cluster[19]
+
+paste("Observation 19th is SGP and it belongs to cluster", wss_kmeans$cluster[19])
+
+
+```
+
+
+# Cluster Plot (Silhouette)
+
+```{r}
+fviz_cluster(silhouette_kmeans,data=Pharma_norm,main="Cluster_Silhouette")
+
+silhouette_kmeans$size #Size of the cluster
+```
+#By employing the Silhouette Method we get 5 clusters of size 4, 2, 3, 8 and 4. Out of all, Cluster 3 has more number of observations.
+
+
+#graphical plotting of data grouped in clusters
+
+```{r}
+Centroid_1 <- data.frame(silhouette_kmeans$centers) %>% rowid_to_column() %>% 
+  gather('Columns', 'Centers', 2:10)
+print(Centroid_1)
+ggplot(Centroid_1, aes(x = Columns, y = Centers, color = as.factor(rowid))) + 
+  geom_line(aes(group = as.factor(rowid)))
+```
+
+
+# c.To find a pattern in the clusters with respect to the numerical variables (10 to 12)? (those not used in forming the clusters)
+
+```{r}
+Pharma_Pattern <- Pharma %>% select(c(12,13,14)) %>% mutate(Cluster = silhouette_kmeans$cluster)
+print(Pharma_Pattern) #The remaining three categories are Stock Exchange, Location, and Median
+```
+
+# To visualize the distribution of businesses grouped by clusters and to identify any trends in the data, utilizing bar charts
+
+```{r}
+Median_Recom <- ggplot(Pharma_Pattern, mapping = aes(factor(Cluster), fill=Median_Recommendation)) +
+  geom_bar(position = 'dodge') + labs(x='Clusters', y='Frequence')
+
+Location_0 <- ggplot(Pharma_Pattern, mapping = aes(factor(Cluster), fill=Location)) + 
+  geom_bar(position = 'dodge') + labs(x='Clusters', y='Frequence') 
+
+Exchange_0 <- ggplot(Pharma_Pattern, mapping = aes(factor(Cluster), fill=Exchange)) + 
+  geom_bar(position = 'dodge') + labs(x='Clusters', y='Frequence')
+
+plot_grid(Median_Recom, Location_0, Exchange_0)
+```
+
+#The clustering analysis suggests that the companies in each cluster have similar characteristics in terms 
+
+#Cluster -1 has companies from various locations listed on the NYSE, and they have a moderate buy or sell recommendation.
+
+#Cluster -2 has a mix of American and Canadian companies listed on the NYSE, and they have a moderate buy or sell recommendation.
+
+#Cluster -3 has companies from Germany and the USA listed on stock exchange markets other than NYSE (AMEX, NASDAQ) have a hold and moderate buy recommendation .
+
+#Cluster -4 is dominated by American-based companies listed on the New York Stock Exchange, and they have a hold, moderate sell, strong buy and moderate buy recommendation.
+
+#Cluster -5 has companies from the UK and USA, and they have a  hold and moderate buy recommendation.
+
+# d.Naming for each cluster using the variables in the dataset.
+
+#Based on the entire analysis and looking at the characterstics of the clusters, 21 pharmaceutical industries can be categorized into 5 different groups:
+
+#Cluster 1 - “Growth oriented - Low risky companies”: A company with low asset turnover and high revenue growth may indicate that the company has significant growth potential but is not yet operating at optimal efficiency. Investors should consider the company’s industry and competitive landscape, as well as its ability to sustain high revenue growth over the long term. It’s also important to evaluate the company’s profitability, as high revenue growth may not necessarily lead to higher profits if the company is not utilizing its assets efficiently.Also,these are the companies from various locations listed on the NYSE, and they have a moderate buy or sell recommendation, suggesting that they may have some growth potential.
+
+#Cluster 2 - “Overpriced - Risky companies”: since it has high price-to-earnings (PE) ratio and a low net profit margin means that the market is valuing the company’s stock at a premium compared to its current earnings, even though the company’s net profit margin is relatively low. which means investors are willing to pay a high price for each dollar of earnings the company generates, despite the fact that the company is not generating a high level of profit compared to its revenue.Such companies can be risky, as they may not be able to meet the market’s expectations and may experience a decline in stock price in the future.
+
+#Cluster 3 - “Debt-ridden - very risky companies”: Companies with high leverage and low net profit margin & ROA may indicate that the company is taking on a significant amount of debt to finance its operations, while not generating a sufficient level of profitability or returns on assets. This can be a concerning signal for investors, as the company may struggle to meet its debt obligations and may experience financial distress in the long term.Also,listed on stock exchange markets other than NYSE (AMEX and NASDAQ), and they have a hold or moderate buy recommendation.
+
+#Cluster 4 - “Stable - efficient companies”: company with normal levels across financial metrics can be considered that the company is operating efficiently and effectively within its industry and competitive landscape. Also it is dominated by American-based companies listed on the New York Stock Exchange, and they have a spread advice to keep their stock, suggesting that they are stable and relatively low-risk investments.
+
+#Cluster 5 - “Established - profitable companies”: Companies with high market capitalization are typically large and well-established companies that have a significant market presence and a strong financial position. High market capitalization means that the company has a large number of outstanding shares and a high stock price, resulting in a high valuation.Also,they have a partially hold and buy recommendation for their stocks listed on the NYSE.
