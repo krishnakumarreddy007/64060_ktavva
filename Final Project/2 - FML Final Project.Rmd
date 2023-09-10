@@ -1,0 +1,288 @@
+---
+title: "FML Project - Krishna Kumar Tavva - 811283461"
+date: "2023-05-07"
+output:
+  word_document: default
+  html_notebook: default
+  pdf_document: default
+---
+#Loading Required Packages
+```{r}
+rm(list = ls()) #cleaning the environment
+library(readr)
+library(tidyverse)
+
+*Loading the required packages*
+```{r}
+library("readr")
+library("dplyr")
+library("ISLR")
+library("caret")
+library("class")
+library("ggplot2")
+library("FactoMineR")
+library("ggcorrplot")
+library("corrr")
+library("tidyverse")
+library("esquisse")
+library("gmodels")
+library("factoextra")
+library("fpc")
+library("cluster")
+library("pandoc")
+library("pander")
+```
+```{r}
+setwd("E:/MSBA Github Repository/64060_ktavva/Final Project")
+```
+
+*Loading the data*
+```{r}
+Fuel_Receipts <- read.csv("Fuel_Receipts.csv")
+
+row.names(Fuel_Receipts) <- Fuel_Receipts[,1] #changing column name of Fuel data set to row name
+
+head(Fuel_Receipts) 
+
+str(Fuel_Receipts)
+
+summary(Fuel_Receipts)
+
+```
+
+
+```{r}
+#Removing Unnecessary Variables
+Fuel_Data <- Fuel_Receipts[,-c(1,3:5,7,9,10,12:14,21:30)]
+
+```
+
+*Data Cleaning & Transformation*
+```{r}
+#Looking for missing Values
+colMeans(is.na(Fuel_Data))
+
+```
+
+```{r}
+#Treating the null values with median of the column.
+Fuel_Data$mercury_content_ppm[is.na(Fuel_Data$mercury_content_ppm)] <-
+  median(Fuel_Data$mercury_content_ppm, na.rm = T)
+
+Fuel_Data$fuel_cost_per_mmbtu[is.na(Fuel_Data$fuel_cost_per_mmbtu)] <-
+  median(Fuel_Data$fuel_cost_per_mmbtu, na.rm = T)
+```
+
+```{r}
+#Dropping all variables that have significant missing values
+any(is.na.data.frame(Fuel_Data)) #checking the data after omitting null values
+```
+
+
+
+*Data Partition and Normalization*
+```{r}
+#Data Partition
+set.seed(1234)
+Data_Part <- createDataPartition(Fuel_Data$fuel_cost_per_mmbtu,
+                                       p=0.02,list=F)
+Fuel_Data_part <- Fuel_Data[Data_Part,]
+Data_Part_Train <- createDataPartition(Fuel_Data_part$fuel_cost_per_mmbt,
+                                       p=0.75,list=F)
+
+Train_Data <- Fuel_Data_part[Data_Part_Train,]
+Test_Data <- Fuel_Data_part[-Data_Part_Train,]
+summary(Train_Data[,-c(1:4)])
+
+```
+```{r}
+#Normalization
+Normalized_Data <- scale(Fuel_Data_part[,-c(1:4)])
+Normalized_Train <- scale(Train_Data[,-c(1:4)])
+summary(Normalized_Train)
+Normalized_Test <- scale(Test_Data[,-c(1:4)])
+summary(Normalized_Test)
+```
+
+```{r}
+#Looking at the Correlation between Variables.
+corr_matrix <- cor(Normalized_Data)
+ggcorrplot(corr_matrix, outline.color = "grey50", lab = TRUE, hc.order = TRUE, type = "full")
+```
+
+*Sulphur_content and ash_content_pct are highly positively correlated with Fuel_mmbtu_per_unit. There no much significant negatively correlated fields.*
+
+```{r}
+data.pca <- princomp(corr_matrix)
+summary(data.pca)
+```
+*Six principal components have been generated (Comp.1 to Comp.6), which also correspond to the number of variables in the data. Each component explains a percentage of the total variance in the data set. In the Cumulative Proportion section, the first principal component explains almost 63% of the total variance. This implies that almost two-thirds of the data in the set of 6 variables can be represented by just the first principal component. The second one explains 17.4% of the total variance and the third one explains 14.8% of the total variance. The cumulative proportion of Comp.1, Comp.2 and Comp.3 explains nearly 95% of the total variance. This means that the first three principal components can accurately represent the data.* 
+
+```{r}
+data.pca$loadings[, 1:3]
+```
+```{r}
+fviz_eig(data.pca, addlabels = TRUE)
+```
+
+```{r}
+# Graph of the variables
+fviz_pca_var(data.pca, col.var = "black")
+```
+*All the variables that are grouped together are positively correlated to each other. The higher the distance between the variable and the origin, the better represented that variable is. The variables that are negatively correlated are displayed to the opposite sides of the biplot’s origin.*
+
+*Finding the Optimal K*
+```{r}
+#Elbow Method
+Elbow_method <- fviz_nbclust(Normalized_Train,kmeans,method="wss")
+Elbow_method
+
+#Silhouette Method
+Silhouette <- fviz_nbclust(Normalized_Train,kmeans,method="silhouette")
+Silhouette
+
+```
+*The optimal value of k can be considered as k = 8 by using "Silhouette Method" as it is clear compared to Elbow Method.*\vspace{2mm}
+\newline
+
+*Formulation of clusters with K=8*
+```{r}
+#Using K Means -Silhouette
+kmeans_clust <- kmeans(Normalized_Train,centers = 8,nstart=25)
+pandoc.table(kmeans_clust$centers,style="grid", split.tables = Inf)
+kmeans_clust$size
+```
+*By employing the Silhouette Method we get 5 clusters of size 89,3,665,2916,6952,159,1340 and 50. Out of all, Cluster 4 has more number of observations.*\vspace{3mm}
+\newline
+*Whereas, "silhouette" as a method of finding optimal k gives the analyst/user a wider scope to understand the problem.*\vspace{3mm}
+\newline
+***Thus, we say that by proceeding with k=8 we can ideally have a wider vision to look and also understand about the power generation in the US..***\vspace{3mm}
+\newline
+
+```{r}
+cluster <- kmeans_clust$cluster
+kmean_clustering <- cbind(Train_Data, cluster)
+
+plot.cluster <- fviz_cluster(kmeans_clust, kmean_clustering[,-c(1:4)])
+plot.cluster
+```
+
+```{r}
+fuel_median <- kmean_clustering %>% group_by(cluster) %>%
+summarise(median_cost = median(fuel_cost_per_mmbtu),
+median_mmbtu = median(fuel_mmbtu_per_unit),
+median_received_units = median(fuel_received_units),
+median_sulfur = median(sulfur_content_pct)*0.01,
+median_ash = median(ash_content_pct)*0.1,
+median_mercury = median(mercury_content_ppm)*0.001)
+fuel_median
+```
+
+```{r}
+fuel_clustering <- kmean_clustering %>% select(fuel_group_code, cluster) %>% 
+group_by(fuel_group_code, cluster) %>% count() %>% arrange(cluster)
+fuel_clustering
+```
+
+```{r}
+Fuel_Plot <- ggplot(kmean_clustering) +
+  aes(x = cluster, fill = fuel_group_code) +
+  geom_histogram(bins = 30L) +
+  scale_fill_hue(direction = 1) +
+  labs(
+    x = "Clusters",
+    y = "Count",
+    title = "Fuel Types Used In Each Of The Cluster",
+    fill = "Fuel Type"
+) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14L,
+    face = "bold.italic",
+    hjust = 0.5),
+    axis.title.y = element_text(face = "bold"),
+    axis.title.x = element_text(face = "bold")
+)
+
+  
+Fuel_Plot
+```
+
+
+```{r}
+Heat_Content_Plot <- ggplot(kmean_clustering) +
+  aes(x = cluster, y = fuel_mmbtu_per_unit) +
+  geom_jitter(size = 1.5) + 
+  labs(x = "Clusters",
+    y = "Heat Content",
+    title = "Heat Content Generated in Each Clusters",
+    subtitle = "In Metric Million British Thermal Units (MMBtu)") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 14L,
+    face = "bold.italic",
+    hjust = 0.5),
+    plot.subtitle = element_text(size = 10L,
+    face = "italic",
+    hjust = 0.5),
+    axis.title.y = element_text(size = 10L,
+    face = "bold"),
+    axis.title.x = element_text(size = 10L,
+    face = "bold"))
+Heat_Content_Plot
+```
+
+*Describing the cluster*  
+
+*Cluster 1: This cluster predominantly utilizes petroleum and natural gas as fuel sources for power generation. The median cost for generating power units with a heat content of 5.8 million metric British thermal units (MMBtu) is $11.6. This cluster generates a total of 828 units, and no impurities of Sulphur, mercury, or ash content are detected.*
+
+*Cluster 2: Natural gas and other gases are the primary fuel sources in this cluster. The median cost for generating power units with a heat content of 1.0270 MMBtu is $3.276. This cluster generates approximately 22,154.5 units of power, and there are no impurities of Sulphur, mercury, or ash content.*
+
+*Cluster 3: This cluster also relies on natural gas as its fuel source. The median cost for 1.0300 natural gas units is $3.276. It generates a significant amount of power with 2,069,810.0 units, which is the second highest among all clusters. No impurities are observed in this cluster.*
+
+*Cluster 4: The fuel source in this cluster is coal. The price for generating power units with a heat content of 18.0220 MMBtu is $2.643. This cluster generates a total of 25,185.0 units of power. However, it exhibits impurities of ash exceeding the permissible levels at 0.65 parts per million (ppm) and Sulphur at 0.0044 ppm.*
+
+*Cluster 5: Natural gas is once again the fuel source in this cluster. The median cost for generating power units, which includes extreme outliers, is $6010.289 for a heat content of 1.0370. This cluster generates a minimal amount of power, with only 27.0 units, and no impurities are present.*
+
+*Cluster 6: Coal serves as the fuel source in this cluster. The price for generating power units with a heat content of 22.2140 MMBtu is $3.276. This cluster generates a total of 9,532.0 units of power. However, it surpasses the permissible levels of ash impurities at 2.02 ppm and Sulphur at 0.0245 ppm. Additionally, there is a presence of mercury impurities at 0.00038.*
+
+*Cluster 7: Among all the clusters, this cluster generates the highest number of gas units for power generation, amounting to 5,364,812.0 units. The fuel sources used are natural gas and other gases. The price for generating power units with a heat content of 1.0255 MMBtu is $3.276. No impurities are detected in this cluster.*
+
+*Cluster 8: This cluster utilizes coal and petroleum coke as fuel sources. The price for generating power units with a heat content of 23.3515 MMBtu is $2.916. It generates a total of 18,815.0 units of power. However, the cluster exhibits impurities of ash surpassing the permissible levels at 0.91 ppm, and Sulphur levels exceeding the permissible limit at 0.0283 ppm.*
+
+
+```{r}
+
+#Extra Credit - building the model
+
+model<-lm(Fuel_Data_part$fuel_cost_per_mmbtu~.,data=Fuel_Data_part[,-c(2:4)])
+
+summary(model)
+```
+*This shows that by choosing variables with significant relationship and cluster information leads to better prediction. Here we can see that our p value is greater than 5 % and r squared value is too low. This means variables we considered doesn't account to the variability for fuel cost per mmbtu variable.*
+
+```{r}
+#Finding variable importance 
+
+varImp(model)
+
+```
+
+```{r}
+#Running the multiple linear regression model using just two variables which have greater statistical significance when compared to other variables
+model_1 <- lm(fuel_cost_per_mmbtu~fuel_mmbtu_per_unit+fuel_received_units,data=Train_Data[,-c(2:4)])
+summary(model_1)
+```
+*This shows that by choosing variables with significant relationship and cluster information leads to better prediction. Here we can see that our p value is greater than 1 % and r squared value is too low. This means variables we considered doesn't account to the variability for fuel cost per mmbtu variable.*
+
+```{r}
+model_predict <-predict(model_1,Test_Data,type="response")
+
+summary(model_predict)
+
+Test_Predict <- cbind(Test_Data,model_predict)
+
+```
+
+#The predicted value seems far away from the actual values, this can be referred by looking at the "Test_Predict" data frame.
+
+
